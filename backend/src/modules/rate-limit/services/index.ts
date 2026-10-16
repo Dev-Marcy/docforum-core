@@ -85,12 +85,13 @@ export function rateLimitMiddleware(config: RateLimitConfig) {
     const result = await checkRateLimit(identifier, config);
 
     if (!result.allowed) {
+      const retryAfter = result.retryAfter ?? Math.ceil((config.windowSeconds - (Date.now() - Date.now())) / 1000);
       res.setHeader('RateLimit-Limit', config.maxRequests.toString());
       res.setHeader('RateLimit-Remaining', '0');
       res.setHeader('RateLimit-Reset', result.resetAt.toISOString());
-      res.setHeader('Retry-After', String(result.retryAfter));
+      res.setHeader('Retry-After', String(retryAfter));
       throw new HttpError(429, 'Too many requests. Try again later.', {
-        'Retry-After': String(result.retryAfter),
+        'Retry-After': String(retryAfter),
       });
     }
 
