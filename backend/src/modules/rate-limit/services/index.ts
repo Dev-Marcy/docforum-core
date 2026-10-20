@@ -12,8 +12,8 @@ export interface RateLimitConfig {
 /** Create a rate limit config per route */
 export function createRateLimitConfig(identifier: 'user' | 'ip', customWindow?: number, customMax?: number): RateLimitConfig {
   return {
-    windowSeconds: customWindow || config.rateLimit.windowSeconds,
-    maxRequests: customMax || config.rateLimit.maxRequests,
+    windowSeconds: customWindow ?? config.rateLimit.windowSeconds,
+    maxRequests: customMax ?? config.rateLimit.maxRequests,
     identifier,
   };
 }
@@ -26,7 +26,6 @@ export async function checkRateLimit(
   const now = new Date();
   const windowStart = new Date(now.getTime() - config.windowSeconds * 1000);
 
-  // Count consumption in the current window
   const totalConsumed = await repo.countRateLimitRecords({
     key: identifier,
     scope: config.identifier,
@@ -34,16 +33,14 @@ export async function checkRateLimit(
   });
 
   const remaining = Math.max(0, config.maxRequests - totalConsumed);
-  const resetAt = new Date(now.getTime() + (config.windowSeconds - (now.getTime() - windowStart.getTime())));
-
+  const resetAt = new Date(now.getTime() + config.windowSeconds * 1000);
   const allowed = totalConsumed < config.maxRequests;
 
   if (!allowed) {
-    const retryAfter = Math.ceil((config.windowSeconds - (now.getTime() - windowStart.getTime())) / 1000);
+    const retryAfter = Math.max(1, Math.ceil((resetAt.getTime() - now.getTime()) / 1000));
     return { allowed: false, remaining: 0, resetAt, retryAfter };
   }
 
-  // Record this consumption
   await repo.recordRateLimitConsumption({
     key: identifier,
     scope: config.identifier,
@@ -57,45 +54,34 @@ export async function checkRateLimit(
 /** Per-route rate limiting middleware for Express 5 */
 export function rateLimitMiddleware(config: RateLimitConfig) {
   return async (req: import('express').Request, res: import('express').Response, next: import('express').NextFunction) => {
-    // Exempt /health endpoint
     if (req.path === '/health') {
       return next();
     }
 
-    // Resolve the identifier
     let identifier: string;
 
     if (config.identifier === 'user') {
-      // Use authenticated user ID if available, otherwise fall back to IP
       if (req.user && (req.user as any).id) {
-        identifier = (req.user as any).id;
+        identifier = String((req.user as any).id);
       } else {
         identifier = req.ip || 'anonymous';
       }
     } else {
-      // IP-based identifier
-      // Handle Render proxy: trust first proxy hop
       const forwardedFor = req.headers['x-forwarded-for'] as string | undefined;
-      const realIp = forwardedFor
-        ? (forwardedFor.split(',')[0].trim())
-        : (req.ip || 'unknown');
-      identifier = realIp;
+      identifier = forwardedFor ? forwardedFor.split(',')[0].trim() : (req.ip || 'unknown');
     }
 
     const result = await checkRateLimit(identifier, config);
 
     if (!result.allowed) {
-      const retryAfter = result.retryAfter ?? Math.ceil((config.windowSeconds - (Date.now() - Date.now())) / 1000);
+      const retryAfter = result.retryAfter ?? Math.max(1, Math.ceil((result.resetAt.getTime() - Date.now()) / 1000));
       res.setHeader('RateLimit-Limit', config.maxRequests.toString());
       res.setHeader('RateLimit-Remaining', '0');
       res.setHeader('RateLimit-Reset', result.resetAt.toISOString());
       res.setHeader('Retry-After', String(retryAfter));
-      throw new HttpError(429, 'Too many requests. Try again later.', {
-        'Retry-After': String(retryAfter),
-      });
+      throw new HttpError(429, 'Too many requests. Try again later.', 'RATE_LIMITED');
     }
 
-    // Set rate limit headers for allowed requests
     res.setHeader('RateLimit-Limit', config.maxRequests.toString());
     res.setHeader('RateLimit-Remaining', result.remaining.toString());
     res.setHeader('RateLimit-Reset', result.resetAt.toISOString());
@@ -123,7 +109,7 @@ export async function measureOverhead(
   config: RateLimitConfig,
 ): Promise<number> {
   const start = process.hrtime.bigint();
-  const result = await checkRateLimit(identifier, config);
+  await checkRateLimit(identifier, config);
   const end = process.hrtime.bigint();
   return Number(end - start) / 1_000_000;
 }

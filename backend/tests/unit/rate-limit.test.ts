@@ -1,14 +1,7 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { MemoryRateLimitStore } from '../../src/modules/rate-limit/stores/memory';
+import { describe, it, expect } from 'vitest';
 import { checkRateLimit, measureOverhead } from '../../src/modules/rate-limit/services';
 
 describe('Rate Limiter', () => {
-  let store: MemoryRateLimitStore;
-
-  beforeEach(() => {
-    store = new MemoryRateLimitStore();
-  });
-
   describe('checkRateLimit', () => {
     it('should allow requests within the limit', async () => {
       const result = await checkRateLimit('test-user-1', {
@@ -50,7 +43,6 @@ describe('Rate Limiter', () => {
         });
       }
 
-      // Wait for window to expire (simulate time passing)
       await new Promise((resolve) => setTimeout(resolve, 61000));
 
       const result = await checkRateLimit('test-user', {
@@ -69,7 +61,6 @@ describe('Rate Limiter', () => {
         maxRequests: 100,
         identifier: 'user',
       });
-      // Should be fast - under 1 second for in-memory operations
       expect(overhead).toBeLessThan(1000);
     });
   });
