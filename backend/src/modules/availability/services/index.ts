@@ -48,9 +48,18 @@ export async function generateSlots(input: GenerateSlotsInput) {
 }
 
 /** Re-exported for appointments/services — the only cross-module entry
- * points into this module's booking-concurrency primitive and slot reads.
- * Never import availability/repositories from another module directly. */
-export { claimOpenSlot, findSlotById as getSlot } from '../repositories';
+ * points into this module's booking-concurrency primitive, slot reads and
+ * slot release. Never import availability/repositories from another
+ * module directly. */
+export { claimOpenSlot, findSlotById as getSlot, releaseBookedSlotIfFuture } from '../repositories';
+
+/** Batch slot-time lookup for other modules (patient data export, issue
+ * #40). Times only — no status or doctor internals. */
+export async function getSlotTimesByIds(slotIds: string[]): Promise<Map<string, { startTime: Date; endTime: Date }>> {
+  if (slotIds.length === 0) return new Map();
+  const rows = await availabilityRepo.findSlotTimesByIds([...new Set(slotIds)]);
+  return new Map(rows.map((row) => [row.id, { startTime: row.startTime, endTime: row.endTime }]));
+}
 
 export async function assertCanGenerateFor(userId: string, doctorProfileId: string) {
   await doctorsService.assertOwnsDoctorProfile(userId, doctorProfileId);
