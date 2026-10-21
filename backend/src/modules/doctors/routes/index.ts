@@ -4,16 +4,15 @@ import * as doctorsController from '../controllers';
 
 export const doctorsRouter = Router();
 
+doctorsRouter.get('/', doctorsController.listPublic);
 doctorsRouter.get('/me', authenticate, requireRole('doctor'), doctorsController.getMe);
+doctorsRouter.put('/me/specialties', authenticate, requireRole('doctor'), doctorsController.setMySpecialties);
 doctorsRouter.patch(
   '/:doctorProfileId/verification',
   authenticate,
   requireRole('admin'),
   doctorsController.setVerification,
 );
-doctorsRouter.patch(
-  '/:doctorProfileId/specialties/:specialtyId/verification',
-  authenticate,
-  requireRole('admin'),
-  doctorsController.setDoctorSpecialtyVerification,
-);
+
+export const specialtiesRouter = Router();
+specialtiesRouter.get('/', doctorsController.listSpecialties);
