@@ -1,3 +1,39 @@
+import 'dotenv/config';
+import { parsePaymentsConfig } from './payments';
+
+const payoutPrivacyMode = process.env.PAYOUT_PRIVACY_MODE ?? 'facility';
+if (payoutPrivacyMode !== 'facility' && payoutPrivacyMode !== 'pooled') {
+  throw new Error('PAYOUT_PRIVACY_MODE must be either "facility" or "pooled".');
+}
+
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) throw new Error(`Missing required env var: ${name}`);
+  return value;
+}
+
+/** `TRUST_PROXY` accepts what Express accepts: `true`/`false`, a hop count
+ * (`1`), or a preset string (`loopback`). Absent, it defaults to `false`
+ * everywhere except production, where a proxy is assumed in front. */
+function parseTrustProxy(raw: string | undefined, isProduction: boolean): boolean | number | string {
+  if (raw === undefined || raw === '') return isProduction ? 1 : false;
+  if (raw === 'true') return true;
+  if (raw === 'false') return false;
+  if (/^\d+$/.test(raw)) return Number(raw);
+  return raw;
+}
+
+const PRODUCTION_CORS_ORIGINS = ['https://docforum.github.io'];
+const LOCAL_DEV_CORS_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173'];
+
+function parseCorsOrigins(raw: string | undefined, isProduction: boolean): string[] {
+  if (!raw) return isProduction ? PRODUCTION_CORS_ORIGINS : LOCAL_DEV_CORS_ORIGINS;
+  return raw
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0);
+}
+
 export const config = {
   port: Number(process.env.PORT ?? 4000),
   databaseUrl: requireEnv('DATABASE_URL'),
@@ -60,5 +96,9 @@ export const config = {
     ttlHours: Number(process.env.ADMIN_INVITE_TTL_HOURS ?? 72),
     acceptUrl: process.env.ADMIN_INVITE_ACCEPT_URL ?? 'http://localhost:5173/accept-admin-invite',
   },
-  payments: parsePaymentsConfig(process.env),
+  payments: {
+    ...parsePaymentsConfig(process.env),
+    payoutPrivacyMode,
+    payoutPrivacyPoolAddress: process.env.PAYOUT_PRIVACY_POOL_ADDRESS,
+  },
 } as const;
