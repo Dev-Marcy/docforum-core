@@ -38,12 +38,12 @@ describe('per-specialty credential verification', () => {
     process.env.DATABASE_URL = databaseUrl;
     const appModule = await import('../../src/app.js');
     const dbModule = await import('../../src/db/prisma-client.js');
-    const fixtureModule = await import('./helpers/fixtures.mts');
+    const fixtureModule = await import('./helpers/fixtures.mjs');
     await fixtureModule.installEmailCapture(emailedTokens);
     app = appModule.createApp();
     prisma = dbModule.prisma;
 
-    const fixture = await import('./helpers/fixtures.mts');
+    const fixture = await import('./helpers/fixtures.mjs');
     cardiologyId = await fixture.makeSpecialty(prisma, `Cardiology ${runId}`);
     dermatologyId = await fixture.makeSpecialty(prisma, `Dermatology ${runId}`);
     const doctor = await fixture.makeDoctor(app, prisma, emailedTokens, runId, { specialtyId: cardiologyId });
@@ -54,7 +54,7 @@ describe('per-specialty credential verification', () => {
   }, 60_000);
 
   afterAll(async () => {
-    const fixtureModule = await import('./helpers/fixtures.mts');
+    const fixtureModule = await import('./helpers/fixtures.mjs');
     await fixtureModule.resetEmailSenderFixture();
     await prisma?.$disconnect();
     await pg.stop();

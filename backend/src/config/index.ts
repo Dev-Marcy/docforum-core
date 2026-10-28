@@ -239,8 +239,8 @@ export const config = {
   // set TRUST_PROXY explicitly there; `1` is the value that matches it.
   trustProxy: parseTrustProxy(process.env.TRUST_PROXY, process.env.NODE_ENV === 'production'),
   rateLimit: {
-    windowSeconds: Number(process.env.RATE_LIMIT_WINDOW_SECONDS ?? 60),
-    maxRequests: Number(process.env.RATE_LIMIT_MAX_REQUESTS ?? 100),
+    windowSeconds: positiveNumber(process.env.RATE_LIMIT_WINDOW_SECONDS, 60),
+    maxRequests: positiveNumber(process.env.RATE_LIMIT_MAX_REQUESTS, 100),
   },
   loginThrottle: {
     // Sliding window: failures older than this don't count toward a lock.

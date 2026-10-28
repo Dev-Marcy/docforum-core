@@ -78,7 +78,7 @@ export function rateLimitMiddleware(config: RateLimitConfig) {
       res.setHeader('RateLimit-Remaining', '0');
       res.setHeader('RateLimit-Reset', result.resetAt.toISOString());
       res.setHeader('Retry-After', String(retryAfter));
-      throw new HttpError(429, 'Too many requests. Try again later.', 'RATE_LIMITED');
+      return next(new HttpError(429, 'Too many requests. Try again later.', 'RATE_LIMITED'));
     }
 
     res.setHeader('RateLimit-Limit', config.maxRequests.toString());
@@ -94,7 +94,16 @@ export async function getRateLimitState(
   identifier: string,
   config: RateLimitConfig,
 ): Promise<{ remaining: number; resetAt: Date }> {
-  return repo.getRateLimitState(identifier, config.identifier);
+  const now = new Date();
+  const windowStart = new Date(now.getTime() - config.windowSeconds * 1000);
+  const totalConsumed = await repo.countRateLimitRecords({
+    key: identifier,
+    scope: config.identifier,
+    since: windowStart,
+  });
+  const remaining = Math.max(0, config.maxRequests - totalConsumed);
+  const resetAt = new Date(now.getTime() + config.windowSeconds * 1000);
+  return { remaining, resetAt };
 }
 
 /** Cleanup old rate-limit records to prevent unbounded growth. */
